@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>PositionVault: P&L Analysis</title>
+    
+    <style>
+        /* --- iOS System Color Definitions (Refined) --- */
+        :root {
+            /* General */
+            --ios-bg: #f2f2f7;         
+            --ios-group-bg: #ffffff;   
+            --ios-separator: #d1d1d6;  
+            --text-color: #000000;      
+            --secondary-text-color: #6a6a6a; 
+            /* Accent Colors */
+            --system-blue: #007aff;     
+            --system-indigo: #5856d6;   
+            --system-green: #30d158;    
+            --system-red: #ff3b30;      
+            --system-orange: #ff9500;   
+            /* Subtle input colors for native look */
+            --input-field-bg: #fdfdfd; 
+            --input-field-border: #e8e8e8;
+        }
+
+        /* --- Dark Mode Support --- */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --ios-bg: #000000;
+                --ios-group-bg: #1c1c1e;
+                --ios-separator: #38383a;
+                --text-color: #ffffff;
+                --secondary-text-color: #98989d;
+                --input-field-bg: #2c2c2e;
+                --input-field-border: #444444;
+            }
+        }
+
+        /* Base Styles */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--ios-bg);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 0 15px;
+        }
+
+        /* Header (Large Title Style) */
+        .header {
+            font-size: 34px;
+            font-weight: 700;
+            padding: 30px 15px 10px 15px;
+            color: var(--text-color);
+        }
+
+        /* Section Styling */
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--secondary-text-color);
+            padding: 18px 20px 5px 20px; 
+            text-transform: uppercase;
+        }
+        
+        .form-section {
+            margin: 0 0 15px 0; 
+            background-color: var(--ios-group-bg);
+            border-radius: 10px;
+            overflow: hidden; 
+        }
+
+        /* Row Styling */
+        .transaction-row {
+            display: flex;
+            align-items: center; 
+            /* 20px left padding, 2px right padding (for cross margin) */
+            padding: 8px 2px 8px 20px; 
+            border-bottom: 0.5px solid var(--ios-separator);
+            /* 2px gap between inputs block and delete button */
+            gap: 2px; 
+        }
+        .transaction-row:last-child {
+            border-bottom: none;
+        }
+
+        /* --- Input Field Separation & Width Fix (CRITICAL) --- */
+        .trans-inputs {
+            display: flex;
+            /* Use flex: 1 1 auto to aggressively consume space */
+            flex: 1 1 auto; 
+            /* Absolute minimum gap between Qty and Price boxes (2px) */
+            gap: 2px; 
+        }
+        .input-group {
+            /* Now flex-basis is 50% of the maximum available space in trans-inputs */
+            flex-basis: 50%; 
+            display: block; 
+        }
+
+        /* --- Input Field Visual Perfection (Placeholder Labels) --- */
+        .input-group input[type="number"], #currentPriceInput {
+            -webkit-appearance: none;
+            -moz-appearance: textfield;
+            /* CRITICAL FIX: Consistent Font Size and Color */
+            font-size: 16px; 
+            /* Set font weight for entered/value text */
+            font-weight: 500; 
+            color: var(--text-color);
+            text-align: left;
+            box-sizing: border-box; /* Ensure padding is included in the element's width */
+            
+            /* *FIX* - Re-introduce width: 100% for the transaction inputs to stretch correctly */
+            width: 100%; 
+
+            /* iOS text field visual cues */
+            background-color: var(--input-field-bg);
+            border: 1px solid var(--input-field-border);
+            border-radius: 8px; 
+            padding: 10px 12px; 
+            margin: 5px 0; 
+        }
+        
+        /* OVERRIDE for Current Price Input to use flex rules */
+        #currentPriceInput {
+            /* Input must be 100% of its parent wrapper */
+            width: 100%; 
+            flex-grow: unset; /* Let the wrapper handle flex-grow */
+        }
+        
+        .input-group input[type="number"]:focus, #currentPriceInput:focus { 
+            outline: none; 
+            border-color: var(--system-blue) !important; 
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15) !important; 
+            background-color: var(--ios-group-bg);
+        }
+        /* FINAL FIX: Ensure placeholder font weight is light/regular for consistency */
+        input::placeholder {
+            color: var(--secondary-text-color);
+            opacity: 0.8;
+            font-weight: 400; /* Explicitly set to Regular */
+        }
+
+
+        /* --- Delete Button Alignment Perfection --- */
+        .delete-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px; 
+            height: 30px; 
+            background: none;
+            border: none;
+            color: var(--system-red);
+            font-size: 24px; 
+            cursor: pointer;
+            padding: 0;
+            flex-shrink: 0;
+            /* Perfectly centered relative to the whole row */
+            margin: auto 0;
+            opacity: 0.9;
+        }
+        .delete-btn:active { opacity: 0.5; }
+
+        /* Results & Current Price Input Styling */
+        .results-block {
+            padding: 0 20px;
+            margin-bottom: 25px; 
+            background-color: var(--ios-group-bg);
+            border-radius: 10px;
+        }
+        
+        .result-item {
+            display: flex;
+            /* Default for result items is space-between */
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0; 
+            border-bottom: 0.5px solid var(--ios-separator);
+        }
+        .results-block .result-item:last-child { border-bottom: none; }
+        .results-block .result-item:first-child { padding-top: 15px; }
+        .results-block .result-item:last-child { padding-bottom: 15px; }
+
+        .result-label {
+            font-size: 17px;
+            font-weight: 400;
+            color: var(--text-color);
+            flex-grow: 1; /* Default: allows the label to push values to the right */
+        }
+        
+        /* --- CRITICAL FIX FOR CURRENT PRICE ROW --- */
+        /* Overrides the label's flex-grow only in this row to prevent excessive spacing */
+        #market-price-row .result-label {
+            flex-grow: 0; /* Prevents the label from consuming excess space */
+            flex-shrink: 0;
+        }
+        /* Defines the tight gap and ensures elements are pushed to the left */
+        #market-price-row {
+            justify-content: flex-start !important; 
+            /* Symmetrical 20px padding left and right for clean container boundary */
+            padding: 15px 20px 15px 20px !important; 
+            /* Updated gap to 5px */
+            gap: 5px; 
+            align-items: center; 
+        }
+        /* --- END CRITICAL FIX --- */
+
+        .result-value {
+            font-size: 17px;
+            font-weight: 600;
+            color: var(--text-color); /* Ensure all standard values use the primary color */
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px; 
+        }
+        
+        .percentage-value-wrapper {
+            font-size: 16px;
+            font-weight: 400;
+            white-space: nowrap;
+            margin-left: -5px; 
+        }
+
+        /* CURRENT PRICE INPUT WRAPPER (THE CONTAINMENT FIX) */
+        .current-price-input-wrapper {
+            flex-grow: 1; /* Take up all remaining space */
+            min-width: 0; /* Allows shrinking */
+            /* THE CRITICAL FIX: Clips any sub-pixel overflow from the input */
+            overflow: hidden; 
+        }
+        
+        #currentPriceInput {
+            text-align: right !important; 
+            font-weight: 600;
+            
+            flex-shrink: 0;
+            margin: 0 !important; /* Remove all margins to rely purely on parent padding/gap */
+            padding: 10px 12px !important; 
+        }
+        
+        /* Special Values - ONLY P&L values retain specific colors */
+        .pn-l-positive { color: var(--system-green); }
+        .pn-l-negative { color: var(--system-red); }
+        
+        /* Removed .avg-buy, .avg-sell, and .net-qty-value classes for standardization */
+
+        
+        .pn-l-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 25px;
+            border-radius: 10px;
+            margin-top: 15px;
+            margin-bottom: 30px;
+            background-color: var(--system-red); 
+            color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+        .pn-l-section.profit { background-color: var(--system-green); }
+        .pn-l-section.neutral { 
+            background-color: var(--secondary-text-color); 
+            opacity: 0.9;
+        }
+
+        .pn-l-title {
+            font-size: 15px;
+            font-weight: 500;
+            opacity: 0.9;
+            margin-bottom: 8px;
+        }
+        .pn-l-value-display {
+            font-size: 44px;
+            font-weight: 800;
+            text-align: center; 
+        }
+        .pn-l-value-display .percentage-block {
+            font-size: 18px;
+            font-weight: 500;
+            margin-top: 5px; 
+            display: block;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">PositionVault: P&L Analysis</div>
+
+    <!-- 1. Buy Transactions Section -->
+    <div class="section-title">Buy Transactions</div>
+    <div class="form-section">
+        <div id="buy-transactions-list">
+            <!-- Buy rows generated here by JS -->
+        </div>
+    </div>
+    <button class="add-btn add-buy-btn" onclick="addTransaction('buy')">Add Buy Transaction</button>
+
+    <!-- 2. Sell Transactions Section -->
+    <div class="section-title">Sell Transactions</div>
+    <div class="form-section">
+        <div id="sell-transactions-list">
+            <!-- Sell rows generated here by JS -->
+        </div>
+    </div>
+    <button class="add-btn add-sell-btn" onclick="addTransaction('sell')">Add Sell Transaction</button>
+    
+    <!-- 3. Current Market Price Input -->
+    <div class="section-title">Current Price</div>
+    <div class="form-section">
+        <div id="market-price-row" class="result-item">
+            <span class="result-label">Current Market Price</span> 
+            <!-- CONTAINMENT WRAPPER -->
+            <div class="current-price-input-wrapper">
+                <input type="number" inputmode="decimal" id="currentPriceInput" value="" min="0.01" step="0.01" placeholder="Price (₹)">
+            </div>
+            <!-- END CONTAINMENT WRAPPER -->
+        </div>
+    </div>
+
+    <!-- 4. Results Section (Always visible) -->
+    <div>
+        
+        <!-- Averages -->
+        <div class="section-title">Averages</div>
+        <div class="results-block">
+            <div class="result-item">
+                <span class="result-label">Average Buy Price</span>
+                <span id="avgBuyPriceDisplay" class="result-value">₹0.00</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Average Sell Price</span>
+                <span id="avgSellPriceDisplay" class="result-value">₹0.00</span>
+            </div>
+        </div>
+
+        <!-- Share Breakdown Section -->
+        <div class="section-title">Share Breakdown & Capital Flow</div>
+        <div class="results-block">
+            <!-- Investment (Held Shares) -->
+            <div class="result-item">
+                <span class="result-label">Investment (Held Shares)</span>
+                <span id="costOfSharesHeldDisplay" class="result-value">₹0.00</span>
+            </div>
+            <!-- Total Sales Proceeds (New Metric) -->
+            <div class="result-item">
+                <span class="result-label">Total Sales Proceeds</span>
+                <span id="totalSalesProceedsDisplay" class="result-value">₹0.00</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Shares Sold</span>
+                <span id="sharesSoldDisplay" class="result-value">0</span>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Shares Still Held</span>
+                <span id="netQtyDisplay" class="result-value">0</span>
+            </div>
+        </div>
+
+        <!-- P&L Breakdown Section (Simplified Labels) -->
+        <div class="section-title">Profit & Loss Breakdown</div>
+        <div class="results-block">
+            <div class="result-item">
+                <span class="result-label">Realized P&L</span>
+                <div id="realizedPLDisplay" class="result-value">₹0.00</div>
+            </div>
+            <div class="result-item">
+                <span class="result-label">Unrealized P&L</span>
+                <div id="unrealizedPLDisplay" class="result-value">₹0.00</div>
+            </div>
+        </div>
+
+        <!-- Net Total P&L (Main Block) -->
+        <div id="pnLBlock" class="pn-l-section neutral">
+            <div class="pn-l-title">NET P&L</div>
+            <div id="pnLValueDisplay" class="pn-l-value-display">₹0.00</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let transactionCounter = 0;
+    
+    // Attach calculate listener to currentPriceInput and initialize the two default rows
+    document.addEventListener('DOMContentLoaded', () => {
+        // Add one default row for each section
+        addTransaction('buy');
+        addTransaction('sell');
+
+        document.getElementById('currentPriceInput').addEventListener('input', calculate);
+        calculate();
+    });
+
+    function addTransaction(type, qty = '', price = '') {
+        transactionCounter++;
+        const listId = type === 'buy' ? 'buy-transactions-list' : 'sell-transactions-list';
+        const list = document.getElementById(listId);
+
+        const row = document.createElement('div');
+        row.className = 'transaction-row';
+        row.id = trans-row-${transactionCounter};
+
+        row.innerHTML = `
+            <div class="trans-inputs">
+                <div class="input-group">
+                    <input type="number" inputmode="decimal" class="qty-input" value="${qty}" min="1" oninput="calculate()" placeholder="Quantity">
+                </div>
+                <div class="input-group">
+                    <input type="number" inputmode="decimal" class="price-input" value="${price}" min="0.01" step="0.01" oninput="calculate()" placeholder="Price (₹)">
+                </div>
+            </div>
+            <button class="delete-btn" onclick="removeTransaction('${row.id}')">
+                &times;
+            </button>
+        `;
+        list.appendChild(row);
+        // Ensure new inputs immediately trigger calculation (real-time)
+        const newInputs = row.querySelectorAll('input');
+        newInputs.forEach(input => {
+            input.addEventListener('input', calculate);
+        });
+        calculate();
+    }
+
+    function removeTransaction(rowId) {
+        document.getElementById(rowId).remove();
+        calculate();
+    }
+
+    function formatINR(value, decimal = 2) {
+        // Use minimumFractionDigits: decimal to ensure two decimal places always show
+        return value.toLocaleString('en-IN', {
+            minimumFractionDigits: decimal, 
+            maximumFractionDigits: decimal
+        });
+    }
+    
+    function formatPercentage(value) {
+        if (Math.abs(value) < 0.009) {
+            return '';
+        }
+        const sign = value >= 0 ? '+' : ''; 
+        const percentString = value.toFixed(2);
+        return <span class="percentage-value-wrapper">(${sign}${percentString}%)</span>;
+    }
+
+    function getTransactionData(type) {
+        const listId = type === 'buy' ? 'buy-transactions-list' : 'sell-transactions-list';
+        const rows = document.getElementById(listId).querySelectorAll('.transaction-row');
+        let totalQty = 0;
+        let totalCost = 0; 
+
+        rows.forEach(row => {
+            const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+            const price = parseFloat(row.querySelector('.price-input').value) || 0;
+            
+            if (qty > 0 && price > 0) {
+                totalQty += qty;
+                totalCost += (qty * price);
+            }
+        });
+
+        const avgPrice = totalQty > 0 ? totalCost / totalQty : 0;
+        return { totalQty, totalCost, avgPrice };
+    }
+
+    function calculate() {
+        const buyData = getTransactionData('buy');
+        const sellData = getTransactionData('sell');
+        
+        // Use input value or 0 if empty
+        let currentPrice = parseFloat(document.getElementById('currentPriceInput').value) || 0;
+        
+        // --- CORE CALCULATIONS ---
+        const netQty = buyData.totalQty - sellData.totalQty;
+        
+        // 1. Total Sales Proceeds (The amount of cash generated from all sales)
+        const totalSalesProceeds = sellData.totalCost;
+        
+        // 2. Cost of Shares Held (Current Investment)
+        const costOfSharesHeld = netQty > 0 ? netQty * buyData.avgPrice : 0;
+
+        // 3. Cost basis for sold shares (for calculating realized P&L percentage)
+        const realizedBaseCost = sellData.totalQty * buyData.avgPrice;
+
+        // Realized P&L: Profit from sold shares (Selling Price - Buying Price) * Qty Sold
+        let realizedPL = 0;
+        if (sellData.totalQty > 0 && buyData.totalQty > 0) {
+            realizedPL = sellData.totalQty * (sellData.avgPrice - buyData.avgPrice);
+        } else if (sellData.totalQty > 0) {
+            // Edge case: Selling without any prior buys is treated as total realization for display
+            realizedPL = sellData.totalCost; 
+        }
+        
+        // --- UNREALIZED P&L LOGIC ---
+        let unrealizedPL = 0;
+        let unrealizedBaseCost = 0;
+
+        if (netQty > 0) {
+            if (currentPrice > 0) {
+                // Standard calculation if price is provided
+                unrealizedBaseCost = netQty * buyData.avgPrice;
+                unrealizedPL = netQty * (currentPrice - buyData.avgPrice);
+            } else {
+                // If netQty > 0 but currentPrice is 0 (not provided), Unrealized P&L is 0
+                unrealizedPL = 0;
+                unrealizedBaseCost = netQty * buyData.avgPrice; 
+            }
+        }
+        
+        // Net PL is always realized + unrealized
+        const netPL = realizedPL + unrealizedPL;
+        const netPercentageBase = buyData.totalCost; // Total capital deployed
+        
+        // --- CALCULATE PERCENTAGES ---
+        const realizedPercentage = realizedBaseCost > 0 ? (realizedPL / realizedBaseCost) * 100 : 0;
+        const unrealizedPercentage = unrealizedBaseCost > 0 ? (unrealizedPL / unrealizedBaseCost) * 100 : 0;
+        const netPercentage = netPercentageBase > 0 ? (netPL / netPercentageBase) * 100 : 0;
+
+        // --- DISPLAY RESULTS (Always visible now) ---
+        
+        // Helper function for coloring P&L numbers with percentage
+        const colorizePL = (elementId, value, percentage) => {
+            const container = document.getElementById(elementId);
+            const isPositive = value >= 0;
+            
+            container.innerHTML = '';
+            
+            const amountSpan = document.createElement('span');
+            amountSpan.textContent = (isPositive ? '₹' : '-₹') + formatINR(Math.abs(value));
+            container.appendChild(amountSpan);
+            
+            container.innerHTML += formatPercentage(percentage);
+
+            container.classList.remove('pn-l-positive', 'pn-l-negative');
+            if (Math.abs(value) > 0.009) { 
+                container.classList.add(isPositive ? 'pn-l-positive' : 'pn-l-negative');
+            }
+        };
+        
+        // Averages 
+        document.getElementById('avgBuyPriceDisplay').textContent = '₹' + formatINR(buyData.avgPrice);
+        document.getElementById('avgSellPriceDisplay').textContent = '₹' + formatINR(sellData.avgPrice);
+        
+        // Share Breakdown 
+        document.getElementById('costOfSharesHeldDisplay').textContent = '₹' + formatINR(costOfSharesHeld);
+        document.getElementById('totalSalesProceedsDisplay').textContent = '₹' + formatINR(totalSalesProceeds); // NEW METRIC
+        document.getElementById('sharesSoldDisplay').textContent = formatINR(sellData.totalQty, 0);
+        document.getElementById('netQtyDisplay').textContent = formatINR(netQty, 0);
+
+        // P&L Breakdown (with percentages)
+        colorizePL('realizedPLDisplay', realizedPL, realizedPercentage);
+        colorizePL('unrealizedPLDisplay', unrealizedPL, unrealizedPercentage);
+
+        // Net Total P&L (Main Block)
+        const pnLBlock = document.getElementById('pnLBlock');
+        pnLBlock.classList.remove('profit', 'neutral');
+
+        if (netPL > 0.009) {
+            pnLBlock.className = 'pn-l-section profit'; 
+        } else if (netPL < -0.009) {
+            pnLBlock.className = 'pn-l-section'; // Red (loss is default)
+        } else {
+            pnLBlock.className = 'pn-l-section neutral'; 
+        }
+        
+        // Net Total P&L Display (large font)
+        const pnLValueDisplay = document.getElementById('pnLValueDisplay');
+        pnLValueDisplay.innerHTML = (netPL >= 0 ? '₹' : '-₹') + formatINR(Math.abs(netPL)) + 
+                                   <span class="percentage-block">${formatPercentage(netPercentage)}</span>;
+    }
+</script>
+
+</body>
+</html>
